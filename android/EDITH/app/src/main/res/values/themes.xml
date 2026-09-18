@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.EDITH" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">@color/edith_black</item>
+        <item name="android:navigationBarColor">@color/edith_black</item>
+        <item name="android:windowBackground">@color/edith_black</item>
+    </style>
+</resources>

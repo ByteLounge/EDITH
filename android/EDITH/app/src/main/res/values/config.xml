@@ -1,0 +1,4 @@
+<resources>
+    <!-- Default Backend Host (10.0.2.2 for Android Emulator, or host IP on LAN/Internet) -->
+    <string name="default_backend_url">http://10.0.2.2:8000</string>
+</resources>
