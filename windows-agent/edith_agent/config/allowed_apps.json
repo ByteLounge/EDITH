@@ -1,0 +1,10 @@
+{
+  "vscode": "Code.exe",
+  "chrome": "chrome.exe",
+  "notepad": "notepad.exe",
+  "calculator": "calc.exe",
+  "spotify": "Spotify.exe",
+  "terminal": "wt.exe",
+  "explorer": "explorer.exe",
+  "edge": "msedge.exe"
+}
