@@ -6,6 +6,7 @@ from app.config.settings import settings
 from app.database.session import init_db
 from app.api.v1.auth import router as auth_router
 from app.api.v1.devices import router as devices_router
+from app.api.v1.commands import router as commands_router
 from app.api.v1.websocket import router as ws_router
 
 
@@ -35,6 +36,7 @@ app.add_middleware(
 # Mount API Routers
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(devices_router, prefix="/api/v1")
+app.include_router(commands_router, prefix="/api/v1")
 app.include_router(ws_router)
 
 
