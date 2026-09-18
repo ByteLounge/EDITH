@@ -1,6 +1,5 @@
 import os
 import json
-import asyncio
 import pytest
 from httpx import AsyncClient, ASGITransport
 from unittest.mock import AsyncMock
@@ -51,10 +50,27 @@ async def test_full_command_flow_low_risk():
         assert data["status"] == "failed"
         assert "offline" in data["speech_response"].lower()
 
-    # 2. Connect device to ConnectionManager via mock socket
+    # 2. Connect device to ConnectionManager with auto-responding mock socket
     mock_ws = AsyncMock()
     mock_ws.accept = AsyncMock()
-    mock_ws.send_text = AsyncMock()
+
+    async def mock_device_handler(raw_msg):
+        msg = json.loads(raw_msg)
+        if msg.get("type") == "command":
+            req_id = msg.get("request_id")
+            cap = msg.get("payload", {}).get("capability")
+            if cap == "battery_status":
+                manager.handle_command_result(req_id, {
+                    "success": True,
+                    "data": {"percentage": 64, "power_plugged": False}
+                })
+            elif cap == "open_application":
+                manager.handle_command_result(req_id, {
+                    "success": True,
+                    "data": {"application": "vscode", "message": "Launched vscode"}
+                })
+
+    mock_ws.send_text = AsyncMock(side_effect=mock_device_handler)
 
     await manager.connect_device(
         device_id="laptop-yash",
@@ -62,19 +78,6 @@ async def test_full_command_flow_low_risk():
         websocket=mock_ws,
         capabilities=["battery_status", "open_application", "lock", "shutdown"]
     )
-
-    # Simulate device answering in background when command arrives
-    async def device_auto_respond():
-        await asyncio.sleep(0.02)
-        if manager.pending_commands:
-            req_id = list(manager.pending_commands.keys())[0]
-            manager.handle_command_result(req_id, {
-                "success": True,
-                "data": {"percentage": 64, "power_plugged": False}
-            })
-
-    loop = asyncio.get_running_loop()
-    loop.create_task(device_auto_respond())
 
     # 3. Process battery command
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -86,17 +89,6 @@ async def test_full_command_flow_low_risk():
         assert "64 percent" in data["speech_response"]
 
         # 4. Process open VS Code command
-        async def open_app_respond():
-            await asyncio.sleep(0.02)
-            if manager.pending_commands:
-                req_id = list(manager.pending_commands.keys())[0]
-                manager.handle_command_result(req_id, {
-                    "success": True,
-                    "data": {"application": "vscode", "message": "Launched vscode"}
-                })
-
-        loop.create_task(open_app_respond())
-
         res_app = await client.post("/api/v1/commands/process", json={"query": "EDITH, open VS Code on my laptop"}, headers=headers)
         assert res_app.status_code == 200
         app_data = res_app.json()
@@ -130,10 +122,20 @@ async def test_high_risk_confirmation_flow():
     headers = {"Authorization": f"Bearer {token}"}
     transport = ASGITransport(app=app)
 
-    # Connect device
+    # Connect device with auto-responder
     mock_ws = AsyncMock()
     mock_ws.accept = AsyncMock()
-    mock_ws.send_text = AsyncMock()
+
+    async def mock_shutdown_handler(raw_msg):
+        msg = json.loads(raw_msg)
+        if msg.get("type") == "command":
+            req_id = msg.get("request_id")
+            manager.handle_command_result(req_id, {
+                "success": True,
+                "data": {"message": "Windows shutdown initiated"}
+            })
+
+    mock_ws.send_text = AsyncMock(side_effect=mock_shutdown_handler)
 
     await manager.connect_device(
         device_id="laptop-risk",
@@ -154,18 +156,6 @@ async def test_high_risk_confirmation_flow():
         conf_token = data["confirmation_token"]
 
         # 2. Confirm execution
-        async def shutdown_respond():
-            await asyncio.sleep(0.02)
-            if manager.pending_commands:
-                req_id = list(manager.pending_commands.keys())[0]
-                manager.handle_command_result(req_id, {
-                    "success": True,
-                    "data": {"message": "Windows shutdown initiated"}
-                })
-
-        loop = asyncio.get_running_loop()
-        loop.create_task(shutdown_respond())
-
         res_conf = await client.post("/api/v1/commands/confirm", json={"confirmation_token": conf_token, "confirmed": True}, headers=headers)
         assert res_conf.status_code == 200
         conf_data = res_conf.json()
